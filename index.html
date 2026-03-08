@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<title>Show Screen</title>
+<style>
+body {
+    margin: 0;
+    height: 100vh;
+    background: black;
+    transition: background 0.05s linear;
+    overflow: hidden;
+    cursor: none;
+}
+</style>
+</head>
+<body>
+
+<script>
+let currentColor = "black";
+let strobeInterval = null;
+let autoInterval = null;
+
+const channel = new BroadcastChannel("show_channel");
+
+function stopEffects() {
+    clearInterval(strobeInterval);
+    clearInterval(autoInterval);
+}
+
+function applyData(data) {
+    if (!data) return;
+
+    stopEffects();
+
+    currentColor = data.color || "black";
+
+    // AUTO
+    if (data.autoActive && data.autoColors?.length > 0) {
+        let index = 0;
+        autoInterval = setInterval(() => {
+            currentColor = data.autoColors[index];
+            document.body.style.background = currentColor;
+            index = (index + 1) % data.autoColors.length;
+        }, Number(data.autoSpeed));
+        return;
+    }
+
+    // STROBE
+    if (data.strobeActive) {
+        let on = true;
+        strobeInterval = setInterval(() => {
+            document.body.style.background = on ? currentColor : "black";
+            on = !on;
+        }, Number(data.strobeSpeed));
+        return;
+    }
+
+    document.body.style.background = currentColor;
+}
+
+// Nachrichten vom Controller empfangen
+channel.onmessage = (event) => {
+    const data = event.data;
+
+    if (data.type === "redirect") {
+        window.location.href = data.url;
+    }
+
+    if (data.type === "update") {
+        applyData(data.payload);
+    }
+};
+
+</script>
+
+</body>
+</html>

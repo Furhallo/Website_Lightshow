@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<title>Show Control</title>
+
+<style>
+body {
+    font-family: Arial, sans-serif;
+    background: #111;
+    color: white;
+    padding: 20px;
+}
+
+button {
+    width: 170px;
+    height: 40px;
+    margin: 5px 0;
+    border: none;
+    cursor: pointer;
+    font-weight: bold;
+}
+
+.active {
+    background: lime !important;
+    color: black !important;
+}
+
+.preview {
+    width: 240px;
+    height: 140px;
+    background: black;
+    margin-top: 20px;
+    border: 2px solid white;
+}
+
+.fader {
+    width: 240px;
+    margin-top: 5px;
+}
+
+input[type="text"] {
+    width: 240px;
+    height: 30px;
+    margin-top: 5px;
+}
+</style>
+</head>
+<body>
+
+<h2>Farben</h2>
+<div id="colorContainer"></div>
+
+<h2>Auto Color</h2>
+<button id="autoBtn" onclick="toggleAuto()">Auto Color</button><br>
+Geschwindigkeit:<br>
+<input type="range" min="100" max="2000" value="800" class="fader" id="autoSpeed">
+
+<h2>Strobe</h2>
+<button id="strobeBtn" onclick="toggleStrobe()">Strobe</button><br>
+Geschwindigkeit:<br>
+<input type="range" min="50" max="1000" value="200" class="fader" id="strobeSpeed">
+
+<h2>Seitenwechsel</h2>
+<input type="text" id="redirectInput" placeholder="https://example.com">
+<br>
+<button onclick="redirectNow()">Weiterleiten</button>
+
+<h2>Social</h2>
+<button onclick="redirectInsta()">Insta Umleitung</button>
+
+<h2>Preview</h2>
+<div class="preview" id="preview"></div>
+
+<script>
+
+// BroadcastChannel für Live-Kommunikation
+const channel = new BroadcastChannel("show_channel");
+
+const colors = ["red","green","blue","yellow","cyan","magenta","white"];
+
+let autoActive = false;
+let strobeActive = false;
+let currentColor = "red";
+
+let autoInterval = null;
+let strobeInterval = null;
+
+const container = document.getElementById("colorContainer");
+
+// Farbbuttons + Checkboxen erzeugen
+colors.forEach(color => {
+
+    const row = document.createElement("div");
+
+    const btn = document.createElement("button");
+    btn.style.background = color;
+    btn.innerText = color.toUpperCase();
+    btn.onclick = () => setColor(color);
+
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.id = "cb_" + color;
+    checkbox.checked = true;
+
+    row.appendChild(btn);
+    row.appendChild(checkbox);
+    container.appendChild(row);
+});
+
+function setColor(color) {
+    stopPreviewEffects();
+    currentColor = color;
+    autoActive = false;
+    strobeActive = false;
+    update();
+}
+
+function toggleAuto() {
+    autoActive = !autoActive;
+    strobeActive = false;
+    update();
+}
+
+function toggleStrobe() {
+    strobeActive = !strobeActive;
+    autoActive = false;
+    update();
+}
+
+function stopPreviewEffects() {
+    clearInterval(autoInterval);
+    clearInterval(strobeInterval);
+}
+
+function getAutoColors() {
+    const selected = colors.filter(c =>
+        document.getElementById("cb_" + c).checked
+    );
+    return selected.length > 0 ? selected : colors;
+}
+
+function updatePreview() {
+
+    stopPreviewEffects();
+
+    const preview = document.getElementById("preview");
+    const autoColors = getAutoColors();
+
+    // AUTO
+    if (autoActive) {
+        let index = 0;
+        autoInterval = setInterval(() => {
+            currentColor = autoColors[index];
+            preview.style.background = currentColor;
+            index = (index + 1) % autoColors.length;
+        }, Number(document.getElementById("autoSpeed").value));
+        return;
+    }
+
+    // STROBE
+    if (strobeActive) {
+        let on = true;
+        strobeInterval = setInterval(() => {
+            preview.style.background = on ? currentColor : "black";
+            on = !on;
+        }, Number(document.getElementById("strobeSpeed").value));
+        return;
+    }
+
+    preview.style.background = currentColor;
+}
+
+function update() {
+
+    document.getElementById("autoBtn").classList.toggle("active", autoActive);
+    document.getElementById("strobeBtn").classList.toggle("active", strobeActive);
+
+    const data = {
+        color: currentColor,
+        autoActive: autoActive,
+        strobeActive: strobeActive,
+        autoColors: getAutoColors(),
+        autoSpeed: Number(document.getElementById("autoSpeed").value),
+        strobeSpeed: Number(document.getElementById("strobeSpeed").value)
+    };
+
+    // Live an show.html senden
+    channel.postMessage({
+        type: "update",
+        payload: data
+    });
+
+    updatePreview();
+}
+
+// 🔥 Manuelle URL
+function redirectNow() {
+    const url = document.getElementById("redirectInput").value;
+    if (!url) return;
+
+    channel.postMessage({
+        type: "redirect",
+        url: url
+    });
+}
+
+// 🔥 Insta Button
+function redirectInsta() {
+    channel.postMessage({
+        type: "redirect",
+        url: "https://www.instagram.com/dj.torobian/"
+    });
+}
+
+// Fader reagieren live
+document.getElementById("autoSpeed").addEventListener("input", update);
+document.getElementById("strobeSpeed").addEventListener("input", update);
+
+// Initial senden
+update();
+
+</script>
+
+</body>
+</html>
